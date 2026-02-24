@@ -142,13 +142,13 @@ static llvm::Error prepareOutputFilePath(const fs::path& pPath, const bool pOver
 
 int main(int, char* pArgv[])
 {
-    auto configPatchOrErr = loadConfigPatch(std::filesystem::path(pArgv[0]).parent_path() / "ilitepdb.json");
+    auto configPatchOrErr = loadConfigPatch(fs::path(pArgv[0]).parent_path() / "ilitepdb.json");
     if (!configPatchOrErr)
     {
         fmt::print(
             stderr,
             "配置文件错误({}): {}\n",
-            (std::filesystem::path(pArgv[0]).parent_path() / "ilitepdb.json").string(),
+            (fs::path(pArgv[0]).parent_path() / "ilitepdb.json").string(),
             errorToString(configPatchOrErr.takeError())
         );
         fmt::print(stderr, "请先编辑配置文件后再运行。\n");

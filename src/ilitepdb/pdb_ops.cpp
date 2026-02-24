@@ -16,6 +16,7 @@
 #include <llvm/DebugInfo/PDB/Native/GSIStreamBuilder.h>
 #include <llvm/DebugInfo/PDB/Native/InfoStream.h>
 #include <llvm/DebugInfo/PDB/Native/InfoStreamBuilder.h>
+#include <llvm/DebugInfo/PDB/Native/ModuleDebugStream.h>
 #include <llvm/DebugInfo/PDB/Native/NativeSession.h>
 #include <llvm/DebugInfo/PDB/Native/PDBFile.h>
 #include <llvm/DebugInfo/PDB/Native/PDBFileBuilder.h>
@@ -34,6 +35,23 @@
 
 namespace mif::ilitepdb
 {
+
+static bool isProcedureSymbolKind(const llvm::codeview::SymbolKind pKind)
+{
+    switch (pKind)
+    {
+        case llvm::codeview::SymbolKind::S_GPROC32:
+        case llvm::codeview::SymbolKind::S_LPROC32:
+        case llvm::codeview::SymbolKind::S_GPROC32_ID:
+        case llvm::codeview::SymbolKind::S_LPROC32_ID:
+        case llvm::codeview::SymbolKind::S_LPROC32_DPC:
+        case llvm::codeview::SymbolKind::S_LPROC32_DPC_ID:
+            return true;
+        default:
+            return false;
+    }
+}
+
 static std::optional<uint32_t> tryResolveRva(
     llvm::pdb::NativeSession& pNativeSession,
     const uint16_t            pSection,
@@ -92,6 +110,10 @@ llvm::Expected<PdbMetadata> readPdbMetadata(llvm::pdb::NativeSession& pNativeSes
     metadata.mDbiDllRbld     = dbiStream.getPdbDllRbld();
     metadata.mDbiFlags       = dbiStream.getFlags();
     metadata.mDbiMachine     = dbiStream.getMachineType();
+    for (const auto& sectionHeader : dbiStream.getSectionHeaders())
+    {
+        metadata.mSectionHeaders.push_back(sectionHeader);
+    }
 
     return metadata;
 }
@@ -102,38 +124,89 @@ llvm::Expected<std::vector<PublicSymbol>> readPublicSymbols(llvm::pdb::NativeSes
     auto&                     pdbFile = pNativeSession.getPDBFile();
 
     auto publicsStreamOrErr = pdbFile.getPDBPublicsStream();
-    if (!publicsStreamOrErr) { return publicsStreamOrErr.takeError(); }
     auto symbolsStreamOrErr = pdbFile.getPDBSymbolStream();
-    if (!symbolsStreamOrErr) { return symbolsStreamOrErr.takeError(); }
-
-    auto& publicsStream = *publicsStreamOrErr;
-    auto& symbolStream  = *symbolsStreamOrErr;
-
-    for (const uint32_t recordOffset : publicsStream.getPublicsTable())
+    if (publicsStreamOrErr && symbolsStreamOrErr)
     {
-        const auto record = symbolStream.readRecord(recordOffset);
-        if (record.kind() != llvm::codeview::SymbolKind::S_PUB32) { continue; }
+        auto& publicsStream = *publicsStreamOrErr;
+        auto& symbolStream  = *symbolsStreamOrErr;
 
-        auto publicRecordOrErr =
-            llvm::codeview::SymbolDeserializer::deserializeAs<llvm::codeview::PublicSym32>(record);
-        if (!publicRecordOrErr)
+        for (const uint32_t recordOffset : publicsStream.getPublicsTable())
         {
-            llvm::consumeError(publicRecordOrErr.takeError());
+            const auto record = symbolStream.readRecord(recordOffset);
+            if (record.kind() != llvm::codeview::SymbolKind::S_PUB32) { continue; }
+
+            auto publicRecordOrErr =
+                llvm::codeview::SymbolDeserializer::deserializeAs<llvm::codeview::PublicSym32>(record);
+            if (!publicRecordOrErr)
+            {
+                llvm::consumeError(publicRecordOrErr.takeError());
+                continue;
+            }
+
+            const auto&  publicRecord = *publicRecordOrErr;
+            PublicSymbol entry;
+            entry.mName       = publicRecord.Name.str();
+            entry.mSection    = publicRecord.Segment;
+            entry.mOffset     = publicRecord.Offset;
+            entry.mFlags      = publicRecord.Flags;
+            entry.mIsFunction = (publicRecord.Flags & llvm::codeview::PublicSymFlags::Function)
+                                != llvm::codeview::PublicSymFlags::None;
+            auto rva = tryResolveRva(pNativeSession, entry.mSection, entry.mOffset);
+            if (!rva.has_value()) { continue; }
+            entry.mRva = *rva;
+            symbols.push_back(std::move(entry));
+        }
+    }
+    else
+    {
+        if (!publicsStreamOrErr) { llvm::consumeError(publicsStreamOrErr.takeError()); }
+        if (!symbolsStreamOrErr) { llvm::consumeError(symbolsStreamOrErr.takeError()); }
+    }
+
+    auto dbiStreamOrErr = pdbFile.getPDBDbiStream();
+    if (!dbiStreamOrErr) { return dbiStreamOrErr.takeError(); }
+    auto&      dbiStream   = *dbiStreamOrErr;
+    auto&      dbiModules  = dbiStream.modules();
+    const auto moduleCount = dbiModules.getModuleCount();
+
+    for (uint32_t moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
+    {
+        auto moduleDebugStreamOrErr = pNativeSession.getModuleDebugStream(moduleIndex);
+        if (!moduleDebugStreamOrErr)
+        {
+            llvm::consumeError(moduleDebugStreamOrErr.takeError());
             continue;
         }
 
-        const auto&  publicRecord = *publicRecordOrErr;
-        PublicSymbol entry;
-        entry.mName       = publicRecord.Name.str();
-        entry.mSection    = publicRecord.Segment;
-        entry.mOffset     = publicRecord.Offset;
-        entry.mFlags      = publicRecord.Flags;
-        entry.mIsFunction = (publicRecord.Flags & llvm::codeview::PublicSymFlags::Function)
-                            != llvm::codeview::PublicSymFlags::None;
-        auto rva = tryResolveRva(pNativeSession, entry.mSection, entry.mOffset);
-        if (!rva.has_value()) { continue; }
-        entry.mRva = *rva;
-        symbols.push_back(std::move(entry));
+        bool hadError = false;
+        for (const auto record : moduleDebugStreamOrErr->symbols(&hadError))
+        {
+            if (!isProcedureSymbolKind(record.kind())) { continue; }
+
+            auto procRecordOrErr =
+                llvm::codeview::SymbolDeserializer::deserializeAs<llvm::codeview::ProcSym>(record);
+            if (!procRecordOrErr)
+            {
+                llvm::consumeError(procRecordOrErr.takeError());
+                continue;
+            }
+
+            const auto& procRecord = *procRecordOrErr;
+            if (procRecord.Segment == 0 || procRecord.Name.empty()) { continue; }
+
+            PublicSymbol entry;
+            entry.mName       = procRecord.Name.str();
+            entry.mSection    = procRecord.Segment;
+            entry.mOffset     = procRecord.CodeOffset;
+            entry.mFlags      = llvm::codeview::PublicSymFlags::Function;
+            entry.mIsFunction = true;
+
+            auto rva = tryResolveRva(pNativeSession, entry.mSection, entry.mOffset);
+            if (!rva.has_value()) { continue; }
+            entry.mRva = *rva;
+            symbols.push_back(std::move(entry));
+        }
+        if (hadError) { continue; }
     }
 
     return symbols;
@@ -190,7 +263,6 @@ llvm::Error writeLitePdb(
     for (const auto& symbol : pSymbols)
     {
         auto* nameBuffer = storage.Allocate<char>(symbol.mName.size() + 1);
-        // Nauseous
         std::memcpy(nameBuffer, symbol.mName.data(), symbol.mName.size());
         nameBuffer[symbol.mName.size()] = '\0';
 
