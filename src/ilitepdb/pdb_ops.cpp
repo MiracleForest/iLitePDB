@@ -156,18 +156,18 @@ llvm::Error writeLitePdb(
     }
 
     auto& info_builder = builder.getInfoBuilder();
-    info_builder.setVersion(llvm::pdb::PdbRaw_ImplVer::PdbImplVC70);
-    info_builder.setSignature(0);
-    info_builder.setAge(1);
-    info_builder.setGuid({});
+    info_builder.setVersion(pMetadata.mInfoVersion);
+    info_builder.setSignature(pMetadata.mInfoSignature);
+    info_builder.setAge(pMetadata.mInfoAge);
+    info_builder.setGuid(pMetadata.mInfoGuid);
 
     auto& dbi_builder = builder.getDbiBuilder();
-    dbi_builder.setVersionHeader(llvm::pdb::PdbRaw_DbiVer::PdbDbiV70);
-    dbi_builder.setAge(1);
-    dbi_builder.setBuildNumber(14, 0);
-    dbi_builder.setPdbDllVersion(0);
-    dbi_builder.setPdbDllRbld(0);
-    dbi_builder.setFlags(0);
+    dbi_builder.setVersionHeader(pMetadata.mDbiVersion);
+    dbi_builder.setAge(pMetadata.mDbiAge);
+    dbi_builder.setBuildNumber(pMetadata.mDbiBuildNumber);
+    dbi_builder.setPdbDllVersion(pMetadata.mDbiDllVersion);
+    dbi_builder.setPdbDllRbld(pMetadata.mDbiDllRbld);
+    dbi_builder.setFlags(pMetadata.mDbiFlags);
     dbi_builder.setMachineType(
         pMetadata.mDbiMachine == llvm::pdb::PDB_Machine::Unknown ? llvm::pdb::PDB_Machine::Amd64
                                                                  : pMetadata.mDbiMachine
