@@ -1,0 +1,13 @@
+{
+  "input_pdb": "./input",
+  "output_dir": "./output",
+  "symbols_output_dir": "./output/symbols",
+  "overwrite_existing": true,
+  "filters": {
+    "include": "Event|Hook",
+    "function_only": false,
+    "case_sensitive": false
+  }
+}
+
+
