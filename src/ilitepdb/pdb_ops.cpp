@@ -59,7 +59,7 @@ llvm::Expected<std::unique_ptr<llvm::pdb::NativeSession>> openNativeSession(cons
     }
 
     auto* native = dynamic_cast<llvm::pdb::NativeSession*>(session.get());
-    if (native == nullptr) { return makeError("failed to open native PDB session"); }
+    if (!native) { return makeError("failed to open native PDB session"); }
 
     session.release();
     return std::unique_ptr<llvm::pdb::NativeSession>(native);

@@ -1,10 +1,9 @@
 set_project("iLitePDB")
 set_xmakever("2.9.0")
-
-set_languages("cxx23")
 add_rules("mode.debug", "mode.release")
 add_rules("plugin.vsxmake.autoupdate")
 
+set_languages("cxx23")
 add_repositories("liteldev-repo https://github.com/LiteLDev/xmake-repo.git")
 
 add_requires("llvm-prebuilt")
