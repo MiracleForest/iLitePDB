@@ -23,6 +23,8 @@
 #include <llvm/DebugInfo/PDB/Native/PublicsStream.h>
 #include <llvm/DebugInfo/PDB/Native/RawConstants.h>
 #include <llvm/DebugInfo/PDB/Native/SymbolStream.h>
+#include <llvm/DebugInfo/PDB/Native/TpiStream.h>
+#include <llvm/DebugInfo/PDB/Native/TpiStreamBuilder.h>
 #include <llvm/DebugInfo/PDB/PDB.h>
 #include <llvm/DebugInfo/PDB/PDBTypes.h>
 #include <llvm/Object/COFF.h>
@@ -114,6 +116,10 @@ llvm::Expected<PdbMetadata> readPdbMetadata(llvm::pdb::NativeSession& pNativeSes
     {
         metadata.mSectionHeaders.push_back(sectionHeader);
     }
+
+    auto tpiStream = pdbFile.getPDBTpiStream();
+    if (!tpiStream) { return tpiStream.takeError(); }
+    metadata.mTpiVersion = tpiStream->getTpiVersion();
 
     return metadata;
 }
@@ -233,6 +239,9 @@ llvm::Error writeLitePdb(
     info_builder.setSignature(pMetadata.mInfoSignature);
     info_builder.setAge(pMetadata.mInfoAge);
     info_builder.setGuid(pMetadata.mInfoGuid);
+
+    auto& tpi_builder = builder.getTpiBuilder();
+    tpi_builder.setVersionHeader(pMetadata.mTpiVersion);
 
     auto& dbi_builder = builder.getDbiBuilder();
     dbi_builder.setVersionHeader(pMetadata.mDbiVersion);

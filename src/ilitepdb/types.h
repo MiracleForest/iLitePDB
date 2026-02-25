@@ -60,6 +60,8 @@ struct PublicSymbol
 
 struct PdbMetadata
 {
+    llvm::pdb::PdbRaw_TpiVer mTpiVersion = llvm::pdb::PdbRaw_TpiVer::PdbTpiV80;
+
     llvm::pdb::PdbRaw_ImplVer                 mInfoVersion   = llvm::pdb::PdbRaw_ImplVer::PdbImplVC70;
     uint32_t                                  mInfoSignature = 0;
     uint32_t                                  mInfoAge       = 1;
