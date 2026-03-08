@@ -35,13 +35,23 @@ static llvm::Error ensureAllowedKeys(
 static llvm::Error parseFilterObject(const json& pFilters, FilterRulePatch& pPatch)
 {
     if (!pFilters.is_object()) { return makeError("filters must be a JSON object"); }
-    static const std::unordered_set<std::string> kAllowed { "include", "function_only", "case_sensitive" };
+    static const std::unordered_set<std::string> kAllowed {
+        "whitelist",
+        "blacklist",
+        "function_only",
+        "case_sensitive"
+    };
     if (auto err = ensureAllowedKeys(pFilters, kAllowed, "filters")) { return err; }
 
-    if (pFilters.contains("include"))
+    if (pFilters.contains("whitelist"))
     {
-        if (!pFilters["include"].is_string()) { return makeError("filters.include must be a string"); }
-        pPatch.mIncludePattern = pFilters["include"].get<std::string>();
+        if (!pFilters["whitelist"].is_string()) { return makeError("filters.whitelist must be a string"); }
+        pPatch.mWhitelistPattern = pFilters["whitelist"].get<std::string>();
+    }
+    if (pFilters.contains("blacklist"))
+    {
+        if (!pFilters["blacklist"].is_string()) { return makeError("filters.blacklist must be a string"); }
+        pPatch.mBlacklistPattern = pFilters["blacklist"].get<std::string>();
     }
     if (pFilters.contains("function_only"))
     {

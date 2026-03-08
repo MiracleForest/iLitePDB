@@ -11,7 +11,8 @@ namespace mif::ilitepdb
 
 struct CompiledFilter
 {
-    std::optional<std::regex> mIncludeRegex;
+    std::optional<std::regex> mWhitelistRegex;
+    std::optional<std::regex> mBlacklistRegex;
     bool                      mFunctionOnly = false;
 };
 

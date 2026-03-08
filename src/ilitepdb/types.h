@@ -18,14 +18,16 @@ namespace fs = std::filesystem;
 
 struct FilterRule
 {
-    std::optional<std::string> mIncludePattern;
+    std::optional<std::string> mWhitelistPattern;
+    std::optional<std::string> mBlacklistPattern;
     bool                       mFunctionOnly  = false;
     bool                       mCaseSensitive = false;
 };
 
 struct FilterRulePatch
 {
-    std::optional<std::string> mIncludePattern;
+    std::optional<std::string> mWhitelistPattern;
+    std::optional<std::string> mBlacklistPattern;
     std::optional<bool>        mFunctionOnly;
     std::optional<bool>        mCaseSensitive;
 };

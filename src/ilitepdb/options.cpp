@@ -22,7 +22,8 @@ llvm::Expected<RunOptions> resolveRunOptions(const RunOptionsPatch& pPatch)
     resolved.mOutputDir              = *pPatch.mOutputDir;
     resolved.mSymbolsOutputDir       = pPatch.mSymbolsOutputDir.value_or(*pPatch.mOutputDir);
     resolved.mOverwriteExisting      = pPatch.mOverwriteExisting.value_or(true);
-    resolved.mFilter.mIncludePattern = pPatch.mFilter.mIncludePattern;
+    resolved.mFilter.mWhitelistPattern = pPatch.mFilter.mWhitelistPattern;
+    resolved.mFilter.mBlacklistPattern = pPatch.mFilter.mBlacklistPattern;
     resolved.mFilter.mFunctionOnly   = pPatch.mFilter.mFunctionOnly.value_or(false);
     resolved.mFilter.mCaseSensitive  = pPatch.mFilter.mCaseSensitive.value_or(false);
 
